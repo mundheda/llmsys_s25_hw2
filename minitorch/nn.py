@@ -240,7 +240,7 @@ def logsumexp(input: Tensor, dim: int) -> Tensor:
     """  
     ### BEGIN YOUR SOLUTION
     input_max = max(input, dim)
-    input = (input - input_max).exp().sum(dim).log()
+    input = (input - max(input, dim)).exp().sum(dim).log()
     return input_max + input
     
     ### END YOUR SOLUTION
@@ -262,9 +262,8 @@ def softmax_loss(logits: Tensor, target: Tensor) -> Tensor:
     """
     result = None
     ### BEGIN YOUR SOLUTION
-    batch_size = logits.shape[0]
-    num_classes = logits.shape[1]
-    one_hot_target = one_hot(target, num_classes)
+    one_hot_target = one_hot(target, logits.shape[1])
     result = logsumexp(logits, dim=1) -  (one_hot_target * logits).sum(dim=1)
+    return result.view(logits.shape[0], )
     ### END YOUR SOLUTION
-    return result.view(batch_size, )
+    

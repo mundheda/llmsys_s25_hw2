@@ -239,7 +239,15 @@ def logsumexp(input: Tensor, dim: int) -> Tensor:
             NOTE: minitorch functions/tensor functions typically keep dimensions if you provide a dimensions.
     """  
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError
+    # Step 1: Subtract the maximum value along the specified dimension for numerical stability
+    max_val = Max.apply(input, tensor([dim]))  # Find max along the dim
+    # Step 2: Subtract the max value and exponentiate
+    e = (input - max_val).exp()
+    # Step 3: Sum the exponentials along the specified dimension
+    sum_exp = e.sum(dim=dim, keepdim=True)
+    # Step 4: Take the log of the sum and add the max value back
+    return (sum_exp.log() + max_val)
+    
     ### END YOUR SOLUTION
 
 
@@ -259,6 +267,14 @@ def softmax_loss(logits: Tensor, target: Tensor) -> Tensor:
     """
     result = None
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError
+    softmax_output = softmax(logits, dim=1)  # Apply softmax along the class dimension
+
+    # Step 2: Use target labels to select the corresponding probabilities
+    # target is assumed to be a tensor of class indices
+    probs = softmax_output.gather(dim=1, index=target.unsqueeze(1))
+
+    # Step 3: Compute the negative log-likelihood (cross-entropy)
+    loss = -probs.log().view(-1)  # Flatten the loss for each batch element
+    return loss
     ### END YOUR SOLUTION
     return result.view(batch_size, )

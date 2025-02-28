@@ -41,12 +41,7 @@ class Embedding(Module):
         bs, seq_len = x.shape
         ### BEGIN YOUR SOLUTION
         x = one_hot(x, self.num_embeddings)
-        x = x.view(bs * seq_len, self.num_embeddings)
-        
-        print("SHAPE: ")
-        print(x.shape)
-        print(self.weights.value.shape)
-        
+        x = x.view(bs * seq_len, self.num_embeddings)        
         x = x @ self.weights.value
         return x.view(bs, seq_len, self.embedding_dim)
         ### END YOUR SOLUTION
@@ -72,9 +67,9 @@ class Dropout(Module):
             output : Tensor of shape (*)
         """
         ### BEGIN YOUR SOLUTION
-        if self.training:  # Cleaned up the condition
-            mask = tensor_from_numpy(np.random.binomial(1, 1 - self.p_dropout, x.shape), backend=x.backend)
-            x = (x * mask) * (1.0 / (1.0 - self.p_dropout))
+        if(self.training):
+            mask = tensor_from_numpy(np.random.binomial(1, 1-self.p_dropout, x.shape), backend=x.backend)
+            x = (x * mask) * (1.0/(1.0 - self.p_dropout))
         return x
         ### END YOUR SOLUTION
 

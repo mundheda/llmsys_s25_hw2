@@ -33,9 +33,9 @@ class Embedding(Module):
         self.num_embeddings = num_embeddings # Vocab size
         self.embedding_dim  = embedding_dim  # Embedding Dimension
         ### BEGIN YOUR SOLUTION
-        w_init = np.random.randn(num_embeddings, embedding_dim)
-        w_init = tensor_from_numpy(w_init, requires_grad=True, backend=backend)
-        self.weights = Parameter(w_init)
+        w_in = np.random.randn(num_embeddings, embedding_dim)
+        w_in = tensor_from_numpy(w_in, requires_grad=True, backend=backend)
+        self.weights = Parameter(w_in)
         ### END YOUR SOLUTION
     
     def forward(self, x: Tensor):
@@ -104,13 +104,13 @@ class Linear(Module):
         ### BEGIN YOUR SOLUTION
         self.in_size = in_size
         w_range = np.sqrt(1 / in_size)
-        w_init = rand((in_size, out_size), backend=backend, requires_grad=True)
-        w_init = w_init * 2 * w_range - w_range
-        self.weights = Parameter(w_init)
+        w_in = rand((in_size, out_size), backend=backend, requires_grad=True)
+        w_in = w_in * 2 * w_range - w_range
+        self.weights = Parameter(w_in)
         if bias:
-            b_init = rand((out_size,), backend=backend, requires_grad=True)
-            b_init = b_init * 2 * w_range - w_range
-            self.bias = Parameter(b_init)
+            b = rand((out_size,), backend=backend, requires_grad=True)
+            b = 2 * b * w_range - w_range
+            self.bias = Parameter(b)
         else:
             self.bias = None
         # ### END YOUR SOLUTION
@@ -128,10 +128,10 @@ class Linear(Module):
         ### BEGIN YOUR SOLUTION
         x = x.contiguous()
         w = self.weights.value.contiguous()
-        if self.bias is None:
-            output = x @ w
-        else:
+        if self.bias is not None:
             output = x @ w + self.bias.value
+        else:
+            output = x @ w
         return output
         # ### END YOUR SOLUTION
 
@@ -152,13 +152,13 @@ class LayerNorm1d(Module):
         self.dim = dim
         self.eps = eps
         ### BEGIN YOUR SOLUTION
-        w_init = np.ones((dim,))
-        w_init = tensor_from_numpy(w_init, requires_grad=True, backend=backend)
-        self.weights = Parameter(w_init)
+        w = np.ones((dim,))
+        w = tensor_from_numpy(w, requires_grad=True, backend=backend)
+        self.weights = Parameter(w)
         
-        b_init = np.zeros((dim,))
-        b_init = tensor_from_numpy(b_init, requires_grad=True, backend=backend)
-        self.bias = Parameter(b_init)
+        b = np.zeros((dim,))
+        b = tensor_from_numpy(b, requires_grad=True, backend=backend)
+        self.bias = Parameter(b)
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor) -> Tensor:
@@ -177,7 +177,7 @@ class LayerNorm1d(Module):
     
         mean = x.mean(dim=1)
         var = ((x - mean) ** 2).mean(dim=1)
-        norm_x = (x - mean) / ((var + self.eps) ** 0.5)
-        output = norm_x * self.weights.value + self.bias.value
+        x_norm = (x - mean) / ((var + self.eps) ** 0.5)
+        output = self.weights.value * x_norm + self.bias.value
         return output
         ### END YOUR SOLUTION

@@ -148,7 +148,7 @@ class LayerNorm1d(Module):
         """
         batch, dim = x.shape
         ### BEGIN YOUR SOLUTION
-        mean = x.mean(dim=1, keepdim=True)  # Keep the dimension for proper broadcasting
-        sumsq = (((x - mean) ** 2).mean(dim=1, keepdim=True) + self.eps) ** 0.5  # Keep the dimension for broadcasting
-        return (self.weights.value * ((x - mean) / sumsq)) + self.bias.value
+        mean = x.mean(dim=1)
+        sumsq = (((x-mean)**2).mean(dim=1) + self.eps) ** 0.5
+        return (self.weights.value * ((x - mean)/(sumsq))) + self.bias.value
         ### END YOUR SOLUTION

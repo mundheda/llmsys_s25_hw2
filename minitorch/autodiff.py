@@ -103,19 +103,21 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
     # BEGIN ASSIGN1_1
     # TODO
     
+    order = []
     visited = set()
-    result = []
 
-    def dfs(v: Variable):
-        if v.unique_id in visited or v.is_constant():
+    def visit(var: Variable) -> None:
+        if var.unique_id in visited or var.is_constant():
             return
-        visited.add(v.unique_id)
-        for parent in v.parents:
-            dfs(parent)
-        result.append(v)
+        if not var.is_leaf():
+            for parent in var.parents:
+                if not parent.is_constant():
+                    visit(parent)
+        visited.add(var.unique_id)
+        order.insert(0, var)
 
-    dfs(variable)
-    return reversed(result)
+    visit(variable)
+    return order
     
     # END ASSIGN1_1
 
@@ -134,29 +136,20 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
     # BEGIN ASSIGN1_1
     # TODO
    
-    sorted_variables = topological_sort(variable)
+    derivatives = {}
+    derivatives[variable.unique_id] = deriv
+    all_var = list(topological_sort(variable))
 
-    # Dictionary to store gradients for each variable
-    gradients = {variable.unique_id: deriv}
-
-    # Iterate through variables in reverse topological order
-    for var in sorted_variables:
-        if var.unique_id not in gradients:
-            continue  # Skip if no gradient is computed for this variable
-
-        grad = gradients[var.unique_id]
-
-        # Propagate gradients to parents using chain rule
+    for var in all_var:
+        deriv = derivatives[var.unique_id]
         if var.is_leaf():
-            var.accumulate_derivative(grad)
-        
-        else:                
-            for parent, grad_contrib in var.chain_rule(grad):
-                if parent.unique_id not in gradients:
-                    gradients[parent.unique_id] = grad_contrib
-                else:
-                    gradients[parent.unique_id] += grad_contrib
-                    
+            var.accumulate_derivative(deriv)
+        else:
+            for v, d in var.chain_rule(deriv):
+                if not v.is_constant():
+                    derivatives.setdefault(v.unique_id, 0.0)
+                    derivatives[v.unique_id] += d
+    
     # END ASSIGN1_1
 
 

@@ -33,7 +33,7 @@ class Embedding(Module):
         self.num_embeddings = num_embeddings # Vocab size
         self.embedding_dim  = embedding_dim  # Embedding Dimension
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
+        self.weights = Parameter(tensor_from_numpy(np.random.standard_normal((self.num_embeddings, self.embedding_dim)), requires_grad=True, backend=backend))
         ### END YOUR SOLUTION
     
     def forward(self, x: Tensor):
@@ -47,7 +47,10 @@ class Embedding(Module):
         """
         bs, seq_len = x.shape
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
+        x = one_hot(x, self.num_embeddings)
+        x = x.view(bs*seq_len, self.num_embeddings)
+        x = x @ self.weights.value
+        return (x).view(bs, seq_len, self.embedding_dim)
         ### END YOUR SOLUTION
 
     
@@ -71,9 +74,18 @@ class Dropout(Module):
             output : Tensor of shape (*)
         """
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
+        if(self.training):
+            mask = tensor_from_numpy(np.random.binomial(1, 1-self.p_dropout, x.shape), backend=x.backend)
+            x = (x * mask) * (1.0/(1.0 - self.p_dropout))
+        return x
         ### END YOUR SOLUTION
 
+
+
+def RParam(in_size, backend, *shape):
+    r = (2.0/np.sqrt(in_size)) * (rand(shape, backend=backend) - 0.5)
+    #r.requires_grad_(True)
+    return Parameter(r)
 
 class Linear(Module):
     def __init__(self, in_size: int, out_size: int, bias: bool, backend: TensorBackend):
@@ -91,7 +103,8 @@ class Linear(Module):
         """
         self.out_size = out_size
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
+        self.weights = RParam(self.in_size, backend, self.in_size, self.out_size)
+        self.bias = RParam(self.in_size, backend, self.out_size) if bias else No
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor):
@@ -105,7 +118,8 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
+        x = x @ self.weights.value
+        return x if (self.bias is None) else (x + self.bias.value)
         ### END YOUR SOLUTION
 
 
@@ -125,7 +139,8 @@ class LayerNorm1d(Module):
         self.dim = dim
         self.eps = eps
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
+        self.weights = Parameter(ones((self.dim,), backend=backend))
+        self.bias = Parameter(zeros((self.dim,), backend=backend))
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor) -> Tensor:
@@ -141,5 +156,7 @@ class LayerNorm1d(Module):
         """
         batch, dim = x.shape
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
+        mean = x.mean(dim=1)
+        sumsq = (((x-mean)**2).mean(dim=1) + self.eps) ** 0.5
+        return (self.weights.value * ((x - mean)/(sumsq))) + self.bias.value
         ### END YOUR SOLUTION

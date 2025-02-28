@@ -42,6 +42,11 @@ class Embedding(Module):
         ### BEGIN YOUR SOLUTION
         x = one_hot(x, self.num_embeddings)
         x = x.view(bs * seq_len, self.num_embeddings)
+        
+        print("SHAPE: ")
+        print(x.shape)
+        print(self.weights.value.shape)
+        
         x = x @ self.weights.value
         return x.view(bs, seq_len, self.embedding_dim)
         ### END YOUR SOLUTION

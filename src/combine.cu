@@ -103,10 +103,10 @@ __device__ float fn(int fn_id, float x, float y=0) {
         }
       }
       case POW: {
-        return pow(x, y);
+        return powf(x, y);
       }
       case TANH: {
-        return tanh(x);
+        return tanhf(x);
       }
       default: {
         return x + y;
@@ -144,6 +144,7 @@ __device__ void broadcast_index(const int* big_index, const int* big_shape, cons
 }
 
 
+
 __global__ void MatrixMultiplyKernel(
     float* out,
     const int* out_shape,
@@ -156,79 +157,48 @@ __global__ void MatrixMultiplyKernel(
     const int* b_strides
 ) {
 
-    /**
-   * Multiply two (compact) matrices into an output (also comapct) matrix. Matrix a and b are both in a batch
-   * format, with shape [batch_size, m, n], [batch_size, n, p].
-   * Requirements:
-   * - All data must be first moved to shared memory.
-   * - Only read each cell in a and b once.
-   * - Only write to global memory once per kernel.
-   * There is guarantee that a_shape[0] == b_shape[0], a_shape[2] == b_shape[1],
-   * and out_shape[0] == a_shape[0], out_shape[1] == b_shape[1]
-   *
-   * Args:
-   *   out: compact 1D array of size batch_size x m x p to write the output to
-   *   out_shape: shape of the output array
-   *   out_strides: strides of the output array
-   *   a_storage: compact 1D array of size batch_size x m x n
-   *   a_shape: shape of the a array
-   *   a_strides: strides of the a array
-   *   b_storage: comapct 2D array of size batch_size x n x p
-   *   b_shape: shape of the b array
-   *   b_strides: strides of the b array
-   *
-   * Returns:
-   *   None (Fills in out array)
-   */
-
     __shared__ float a_shared[TILE][TILE];
     __shared__ float b_shared[TILE][TILE];
 
-    // In each block, we will compute a batch of the output matrix
-    // All the threads in the block will work together to compute this batch
+    int bx = blockIdx.x, by = blockIdx.y;
+    int tx = threadIdx.x, ty = threadIdx.y;
+
     int batch = blockIdx.z;
     int a_batch_stride = a_shape[0] > 1 ? a_strides[0] : 0;
     int b_batch_stride = b_shape[0] > 1 ? b_strides[0] : 0;
 
+    int row = bx * blockDim.x + tx;
+    int col = by * blockDim.y + ty;
 
-    /// BEGIN ASSIGN1_2
-    /// TODO
-    // Hints:
-    // 1. Compute the row and column of the output matrix this block will compute
-    // 2. Compute the position in the output array that this thread will write to
-    // 3. Iterate over tiles of the two input matrices, read the data into shared memory
-    // 4. Synchronize to make sure the data is available to all threads
-    // 5. Compute the output tile for this thread block
-    // 6. Synchronize to make sure all threads are done computing the output tile for (row, col)
-    // 7. Write the output to global memory
-    float out_val = 0;
-    
-    int row = blockIdx.x * blockDim.x + threadIdx.x;
-    int col = blockIdx.y * blockDim.y + threadIdx.y;
+    float pvalue = 0;
 
-    
-    for (int i = 0; i < (a_shape[2] + TILE - 1); i += TILE) {
+    for (int i = 0; i*TILE < a_shape[2]; ++i) {
+        int a_col = i * TILE + ty;
+        if(row < a_shape[1] && a_col < a_shape[2]) {
+            a_shared[tx][ty] = a_storage[batch * a_batch_stride + row * a_strides[1] + a_col * a_strides[2]];
+        } else {
+            a_shared[tx][ty] = 0.0;
+        }
 
-      int a_index[3] = {batch, row, i + threadIdx.y};
-      int a_idx = index_to_position(a_index, a_strides, 3);
-      a_shared[threadIdx.x][threadIdx.y] = a_storage[a_idx];
-      int b_index[3] = {batch, i + threadIdx.x, col};
-      int b_idx = index_to_position(b_index, b_strides, 3);
-      b_shared[threadIdx.x][threadIdx.y] = b_storage[b_idx];
-      __syncthreads();
-      for (int k = 0; k < TILE; k++){
-        out_val += a_shared[threadIdx.x][k] * b_shared[k][threadIdx.y];
-      }
-      __syncthreads();
+        int b_row = i * TILE + tx;
+        if(b_row < b_shape[1] && col < b_shape[2]) {
+            b_shared[tx][ty] = b_storage[batch * b_batch_stride + b_row * b_strides[1] + col * b_strides[2]];
+        } else {
+            b_shared[tx][ty] = 0.0;
+        }
+
+        __syncthreads(); 
+
+        for (int k = 0; k < TILE; ++k) {
+          if ((i * TILE + k) < a_shape[2] && (i * TILE + k) < b_shape[1])
+            pvalue += a_shared[tx][k] * b_shared[k][ty];
+        }
+
+        __syncthreads(); 
     }
 
-    if (row < out_shape[1] && col < out_shape[2]) {
-      int out_index[3] = {batch, row, col};
-      int out_idx = index_to_position(out_index, out_strides, 3);
-      out[out_idx] = out_val;
-    }
-
-    /// END ASSIGN1_2
+    if (row < out_shape[1] && col < out_shape[2]) 
+        out[batch * out_strides[0] + row * out_strides[1] + col * out_strides[2]] = pvalue;
 }
 
 
@@ -243,7 +213,7 @@ __global__ void mapKernel(
     int shape_size,
     int fn_id
 ) {
-    /**
+  /**
    * Map function. Apply a unary function to each element of the input array and store the result in the output array.
    * Optimization: Parallelize over the elements of the output array.
    *
@@ -281,9 +251,7 @@ __global__ void mapKernel(
     // 6. Apply the unary function to the input element and write the output to the out memory
 
     int out_pos = blockIdx.x * blockDim.x + threadIdx.x;
-    
-    if (out_pos < out_size)
-    {
+    if (out_pos < out_size){
       to_index(out_pos, out_shape, out_index, shape_size);
       broadcast_index(out_index, out_shape, in_shape, in_index, shape_size, shape_size);
       int in_pos = index_to_position(in_index, in_strides, shape_size);
@@ -295,19 +263,19 @@ __global__ void mapKernel(
 
 
 __global__ void reduceKernel(
-    float* out, 
-    int* out_shape, 
-    int* out_strides, 
-    int out_size, 
-    float* a_storage, 
-    int* a_shape, 
-    int* a_strides, 
+    float* out,
+    int* out_shape,
+    int* out_strides,
+    int out_size,
+    float* a_storage,
+    int* a_shape,
+    int* a_strides,
     int reduce_dim,
     float reduce_value,
     int shape_size,
     int fn_id
 ) {
-    /**
+  /**
    * Reduce function. Apply a reduce function to elements of the input array a and store the result in the output array.
    * Optimization:
    * Parallelize over the reduction operation. Each kernel performs one reduction.
@@ -347,11 +315,9 @@ __global__ void reduceKernel(
     // 5. Write the reduced value to out memory
     
     int out_pos = blockIdx.x * blockDim.x + threadIdx.x;
-    if (out_pos < out_size)
-    {
+    if (out_pos < out_size){
       to_index(out_pos, out_shape, out_index, shape_size);
       out[out_pos] = reduce_value;
-      
       for (int i = 0; i < a_shape[reduce_dim]; i++){
         int in_index[MAX_DIMS];
         for (int j = 0; j < shape_size; j++){
@@ -360,7 +326,6 @@ __global__ void reduceKernel(
             in_index[j] = i;
           }
         }
-        
         int in_pos = index_to_position(in_index, a_strides, shape_size);
         out[out_pos] = fn(fn_id, out[out_pos], a_storage[in_pos]);
       }
@@ -370,13 +335,13 @@ __global__ void reduceKernel(
 }
 
 __global__ void zipKernel(
-    float* out, 
-    int* out_shape, 
-    int* out_strides, 
+    float* out,
+    int* out_shape,
+    int* out_strides,
     int out_size,
     int out_shape_size,
-    float* a_storage, 
-    int* a_shape, 
+    float* a_storage,
+    int* a_shape,
     int* a_strides,
     int a_shape_size,
     float* b_storage, 
@@ -385,7 +350,7 @@ __global__ void zipKernel(
     int b_shape_size,
     int fn_id
 ) {
-    /**
+  /**
    * Zip function. Apply a binary function to elements of the input array a & b and store the result in the output array.
    * Optimization: Parallelize over the elements of the output array.
    *
@@ -432,14 +397,11 @@ __global__ void zipKernel(
     // 8. Apply the binary function to the input elements in a_array & b_array and write the output to the out memory
 
     int out_pos = blockIdx.x * blockDim.x + threadIdx.x;
-    if (out_pos < out_size) 
-    {
+    if (out_pos < out_size) {
       to_index(out_pos, out_shape, out_index, out_shape_size);
       broadcast_index(out_index, out_shape, a_shape, a_index, out_shape_size, a_shape_size);
-      
       int a_pos = index_to_position(a_index, a_strides, a_shape_size);
       broadcast_index(out_index, out_shape, b_shape, b_index, out_shape_size, b_shape_size);
-      
       int b_pos = index_to_position(b_index, b_strides, b_shape_size);
       out[out_pos] = fn(fn_id, a_storage[a_pos], b_storage[b_pos]);
     } 

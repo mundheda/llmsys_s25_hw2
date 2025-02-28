@@ -1,10 +1,3 @@
-"""
-For additional transformer related
-
-Sequential
-Embedding
-
-"""
 import numpy as np
 
 from .module import Module, Parameter
@@ -30,8 +23,8 @@ class Embedding(Module):
             weight : The learnable weights of shape (num_embeddings, embedding_dim) initialized from N(0, 1).
         """
         self.backend = backend
-        self.num_embeddings = num_embeddings # Vocab size
-        self.embedding_dim  = embedding_dim  # Embedding Dimension
+        self.num_embeddings = num_embeddings  # Vocab size
+        self.embedding_dim = embedding_dim  # Embedding Dimension
         ### BEGIN YOUR SOLUTION
         self.weights = Parameter(tensor_from_numpy(np.random.standard_normal((self.num_embeddings, self.embedding_dim)), requires_grad=True, backend=backend))
         ### END YOUR SOLUTION
@@ -48,14 +41,14 @@ class Embedding(Module):
         bs, seq_len = x.shape
         ### BEGIN YOUR SOLUTION
         x = one_hot(x, self.num_embeddings)
-        x = x.view(bs*seq_len, self.num_embeddings)
+        x = x.view(bs * seq_len, self.num_embeddings)
         x = x @ self.weights.value
-        return (x).view(bs, seq_len, self.embedding_dim)
+        return x.view(bs, seq_len, self.embedding_dim)
         ### END YOUR SOLUTION
 
-    
+
 class Dropout(Module):
-    def __init__(self, p_dropout: float=0.1):
+    def __init__(self, p_dropout: float = 0.1):
         super().__init__()
         """During training, randomly zeroes some of the elements of the input tensor with probability :attr:`p_dropout`.
 
@@ -74,17 +67,15 @@ class Dropout(Module):
             output : Tensor of shape (*)
         """
         ### BEGIN YOUR SOLUTION
-        if(self.training):
-            mask = tensor_from_numpy(np.random.binomial(1, 1-self.p_dropout, x.shape), backend=x.backend)
-            x = (x * mask) * (1.0/(1.0 - self.p_dropout))
+        if self.training:  # Cleaned up the condition
+            mask = tensor_from_numpy(np.random.binomial(1, 1 - self.p_dropout, x.shape), backend=x.backend)
+            x = (x * mask) * (1.0 / (1.0 - self.p_dropout))
         return x
         ### END YOUR SOLUTION
 
 
-
 def RParam(in_size, backend, *shape):
-    r = (2.0/np.sqrt(in_size)) * (rand(shape, backend=backend) - 0.5)
-    #r.requires_grad_(True)
+    r = (2.0 / np.sqrt(in_size)) * (rand(shape, backend=backend) - 0.5)
     return Parameter(r)
 
 class Linear(Module):
@@ -103,8 +94,8 @@ class Linear(Module):
         """
         self.out_size = out_size
         ### BEGIN YOUR SOLUTION
-        self.weights = RParam(self.in_size, backend, self.in_size, self.out_size)
-        self.bias = RParam(self.in_size, backend, self.out_size) if bias else No
+        self.weights = RParam(in_size, backend, in_size, out_size)  # Fixed: in_size, out_size
+        self.bias = RParam(in_size, backend, out_size) if bias else None  # Fixed: None instead of No
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor):
@@ -119,7 +110,7 @@ class Linear(Module):
         batch, in_size = x.shape
         ### BEGIN YOUR SOLUTION
         x = x @ self.weights.value
-        return x if (self.bias is None) else (x + self.bias.value)
+        return x if self.bias is None else (x + self.bias.value)
         ### END YOUR SOLUTION
 
 
@@ -145,8 +136,6 @@ class LayerNorm1d(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         """Applies Layer Normalization over a mini-batch of inputs. 
-        NOTE: You can assume the input to this layer is a 2D tensor of shape (batch_size, dim)
-        You will use implicit broadcasting in miniTorch to use the weight and bias.
         
         Input: 
             x - Tensor of shape (bs, dim)
@@ -156,7 +145,7 @@ class LayerNorm1d(Module):
         """
         batch, dim = x.shape
         ### BEGIN YOUR SOLUTION
-        mean = x.mean(dim=1)
-        sumsq = (((x-mean)**2).mean(dim=1) + self.eps) ** 0.5
-        return (self.weights.value * ((x - mean)/(sumsq))) + self.bias.value
+        mean = x.mean(dim=1, keepdim=True)  # Ensure that mean calculation is correct
+        sumsq = (((x - mean) ** 2).mean(dim=1, keepdim=True) + self.eps) ** 0.5  # Keep the dimension for broadcasting
+        return (self.weights.value * ((x - mean) / sumsq)) + self.bias.value
         ### END YOUR SOLUTION

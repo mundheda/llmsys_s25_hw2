@@ -1,3 +1,10 @@
+"""
+For additional transformer related
+
+Sequential
+Embedding
+
+"""
 import numpy as np
 
 from .module import Module, Parameter
@@ -23,10 +30,12 @@ class Embedding(Module):
             weight : The learnable weights of shape (num_embeddings, embedding_dim) initialized from N(0, 1).
         """
         self.backend = backend
-        self.num_embeddings = num_embeddings  # Vocab size
-        self.embedding_dim = embedding_dim  # Embedding Dimension
+        self.num_embeddings = num_embeddings # Vocab size
+        self.embedding_dim  = embedding_dim  # Embedding Dimension
         ### BEGIN YOUR SOLUTION
-        self.weights = Parameter(tensor_from_numpy(np.random.standard_normal((self.num_embeddings, self.embedding_dim)), requires_grad=True, backend=backend))
+        w_init = np.random.randn(num_embeddings, embedding_dim)
+        w_init = tensor_from_numpy(w_init, requires_grad=True, backend=backend)
+        self.weights = Parameter(w_init)
         ### END YOUR SOLUTION
     
     def forward(self, x: Tensor):
@@ -40,15 +49,16 @@ class Embedding(Module):
         """
         bs, seq_len = x.shape
         ### BEGIN YOUR SOLUTION
-        x = one_hot(x, self.num_embeddings)
-        x = x.view(bs * seq_len, self.num_embeddings)        
-        x = x @ self.weights.value
-        return x.view(bs, seq_len, self.embedding_dim)
+        oh_x = one_hot(x, self.num_embeddings)
+        oh_x = oh_x.view(bs * seq_len, self.num_embeddings)
+        output = oh_x @ self.weights.value
+        output = output.view(bs, seq_len, self.embedding_dim)
+        return output
         ### END YOUR SOLUTION
 
-
+    
 class Dropout(Module):
-    def __init__(self, p_dropout: float = 0.1):
+    def __init__(self, p_dropout: float=0.1):
         super().__init__()
         """During training, randomly zeroes some of the elements of the input tensor with probability :attr:`p_dropout`.
 
@@ -67,16 +77,14 @@ class Dropout(Module):
             output : Tensor of shape (*)
         """
         ### BEGIN YOUR SOLUTION
-        if(self.training):
-            mask = tensor_from_numpy(np.random.binomial(1, 1-self.p_dropout, x.shape), backend=x.backend)
-            x = (x * mask) * (1.0/(1.0 - self.p_dropout))
-        return x
+        if not self.training or self.p_dropout == 0:
+            return x
+        d_mask = np.random.binomial(1, 1 - self.p_dropout, size=x.shape)
+        d_mask = tensor_from_numpy(d_mask, requires_grad=False, backend=x.backend)
+        output = x * d_mask / (1 - self.p_dropout)
+        return output
         ### END YOUR SOLUTION
 
-
-def RParam(in_size, backend, *shape):
-    r = (2.0 / np.sqrt(in_size)) * (rand(shape, backend=backend) - 0.5)
-    return Parameter(r)
 
 class Linear(Module):
     def __init__(self, in_size: int, out_size: int, bias: bool, backend: TensorBackend):
@@ -92,12 +100,20 @@ class Linear(Module):
             weights - The learnable weights of shape (in_size, out_size) initialized from Uniform(-1/sqrt(in_size), 1/sqrt(in_size)).
             bias   - The learnable weights of shape (out_size, ) initialized from Uniform(-1/sqrt(in_size), 1/sqrt(in_size)).
         """
-        self.in_size = in_size
         self.out_size = out_size
         ### BEGIN YOUR SOLUTION
-        self.weights = RParam(in_size, backend, in_size, out_size)  # Fixed: Corrected the shape for weights
-        self.bias = RParam(in_size, backend, out_size) if bias else None  # Fixed: Corrected to None
-        ### END YOUR SOLUTION
+        self.in_size = in_size
+        w_range = np.sqrt(1 / in_size)
+        w_init = rand((in_size, out_size), backend=backend, requires_grad=True)
+        w_init = w_init * 2 * w_range - w_range
+        self.weights = Parameter(w_init)
+        if bias:
+            b_init = rand((out_size,), backend=backend, requires_grad=True)
+            b_init = b_init * 2 * w_range - w_range
+            self.bias = Parameter(b_init)
+        else:
+            self.bias = None
+        # ### END YOUR SOLUTION
 
     def forward(self, x: Tensor):
         """Applies a linear transformation to the incoming data.
@@ -110,11 +126,14 @@ class Linear(Module):
         """
         batch, in_size = x.shape
         ### BEGIN YOUR SOLUTION
-        x = x @ self.weights.value
-        if self.bias is not None:  # Fixed: Added proper bias handling
-            x += self.bias.value
-        return x
-        ### END YOUR SOLUTION
+        x = x.contiguous()
+        w = self.weights.value.contiguous()
+        if self.bias is None:
+            output = x @ w
+        else:
+            output = x @ w + self.bias.value
+        return output
+        # ### END YOUR SOLUTION
 
 
 class LayerNorm1d(Module):
@@ -133,12 +152,19 @@ class LayerNorm1d(Module):
         self.dim = dim
         self.eps = eps
         ### BEGIN YOUR SOLUTION
-        self.weights = Parameter(ones((self.dim,), backend=backend))
-        self.bias = Parameter(zeros((self.dim,), backend=backend))
+        w_init = np.ones((dim,))
+        w_init = tensor_from_numpy(w_init, requires_grad=True, backend=backend)
+        self.weights = Parameter(w_init)
+        
+        b_init = np.zeros((dim,))
+        b_init = tensor_from_numpy(b_init, requires_grad=True, backend=backend)
+        self.bias = Parameter(b_init)
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor) -> Tensor:
         """Applies Layer Normalization over a mini-batch of inputs. 
+        NOTE: You can assume the input to this layer is a 2D tensor of shape (batch_size, dim)
+        You will use implicit broadcasting in miniTorch to use the weight and bias.
         
         Input: 
             x - Tensor of shape (bs, dim)
@@ -148,7 +174,10 @@ class LayerNorm1d(Module):
         """
         batch, dim = x.shape
         ### BEGIN YOUR SOLUTION
+    
         mean = x.mean(dim=1)
-        sumsq = (((x-mean)**2).mean(dim=1) + self.eps) ** 0.5
-        return (self.weights.value * ((x - mean)/(sumsq))) + self.bias.value
+        var = ((x - mean) ** 2).mean(dim=1)
+        norm_x = (x - mean) / ((var + self.eps) ** 0.5)
+        output = norm_x * self.weights.value + self.bias.value
+        return output
         ### END YOUR SOLUTION

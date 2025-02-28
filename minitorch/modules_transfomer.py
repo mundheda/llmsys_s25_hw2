@@ -45,12 +45,12 @@ class MultiHeadAttention(Module):
         self.attn_hidden_dim = n_embd // n_head
 
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError
-        # self.q_projection = 
-        # self.k_projection = 
-        # self.v_projection = 
-        # self.out_projection = 
-        # self.dropout = 
+        
+        self.q_projection = 
+        self.k_projection = 
+        self.v_projection = 
+        self.out_projection = 
+        self.dropout = 
         ### END YOUR SOLUTION
 
     def create_causal_mask(self, seq_len):

@@ -92,10 +92,11 @@ class Linear(Module):
             weights - The learnable weights of shape (in_size, out_size) initialized from Uniform(-1/sqrt(in_size), 1/sqrt(in_size)).
             bias   - The learnable weights of shape (out_size, ) initialized from Uniform(-1/sqrt(in_size), 1/sqrt(in_size)).
         """
+        self.in_size = in_size
         self.out_size = out_size
         ### BEGIN YOUR SOLUTION
-        self.weights = RParam(in_size, backend, in_size, out_size)  # Fixed: in_size, out_size
-        self.bias = RParam(in_size, backend, out_size) if bias else None  # Fixed: None instead of No
+        self.weights = RParam(in_size, backend, in_size, out_size)  # Fixed: Corrected the shape for weights
+        self.bias = RParam(in_size, backend, out_size) if bias else None  # Fixed: Corrected to None
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor):
@@ -110,7 +111,9 @@ class Linear(Module):
         batch, in_size = x.shape
         ### BEGIN YOUR SOLUTION
         x = x @ self.weights.value
-        return x if self.bias is None else (x + self.bias.value)
+        if self.bias is not None:  # Fixed: Added proper bias handling
+            x += self.bias.value
+        return x
         ### END YOUR SOLUTION
 
 
@@ -145,7 +148,7 @@ class LayerNorm1d(Module):
         """
         batch, dim = x.shape
         ### BEGIN YOUR SOLUTION
-        mean = x.mean(dim=1, keepdim=True)  # Ensure that mean calculation is correct
+        mean = x.mean(dim=1, keepdim=True)  # Keep the dimension for proper broadcasting
         sumsq = (((x - mean) ** 2).mean(dim=1, keepdim=True) + self.eps) ** 0.5  # Keep the dimension for broadcasting
         return (self.weights.value * ((x - mean) / sumsq)) + self.bias.value
         ### END YOUR SOLUTION

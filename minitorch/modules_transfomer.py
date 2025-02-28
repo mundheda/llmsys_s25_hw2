@@ -46,11 +46,11 @@ class MultiHeadAttention(Module):
 
         ### BEGIN YOUR SOLUTION
         
-        self.q_projection = 
-        self.k_projection = 
-        self.v_projection = 
-        self.out_projection = 
-        self.dropout = 
+        # self.q_projection = 
+        # self.k_projection = 
+        # self.v_projection = 
+        # self.out_projection = 
+        # self.dropout = 
         ### END YOUR SOLUTION
 
     def create_causal_mask(self, seq_len):

@@ -14,6 +14,7 @@ from tokenizers import ByteLevelBPETokenizer
 import minitorch
 from minitorch import DecoderLM
 from minitorch.cuda_kernel_ops import CudaKernelOps
+from minitorch.tensor import tensor_from_numpy
 
 
 def get_dataset(dataset_name, model_max_length):
@@ -21,7 +22,7 @@ def get_dataset(dataset_name, model_max_length):
     Obtrain IWSLT (de-en) dataset.
     """
     dataset = {
-        split: datasets.load_dataset(dataset_name, split=split)['translation']
+        split: datasets.load_dataset(dataset_name, split=split, use_auth_token=True)['translation']
         for split in ['train', 'validation', 'test']
     }
     src_key, tgt_key = 'de', 'en'
@@ -299,8 +300,11 @@ def generate(model,
             # TODO
             # run the model with current token_ids, and predict the next token (gen_id)
             # hint: obtain the logits of next token, and take the argmax.
-            gen_id = 0
-            raise NotImplementedError("Generation Function Not Implemented Yet")
+            token_ids_np = np.array([token_ids])
+            input_tensor = tensor_from_numpy(token_ids_np, backend=backend)
+            logits = model(idx=input_tensor)
+            logits = logits.to_numpy()[:, -1]
+            gen_id = np.argmax(logits, axis=-1).item()
             # END ASSIGN2_2
 
             if gen_id == tokenizer.vocab[f'<eos_{tgt_key}>']:
@@ -325,6 +329,9 @@ def evaluate_bleu(examples, gen_sents, tgt_key):
     Returns:
     - A dictionary containing the BLEU score.
     """
+    print("BLEU score:", BLEU().corpus_score(
+        hypotheses=gen_sents,
+        references=[[example[tgt_key] for example in examples]]).score)
     return {
         'bleu': BLEU().corpus_score(
             hypotheses=gen_sents,

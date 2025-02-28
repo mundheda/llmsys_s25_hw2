@@ -152,7 +152,7 @@ def test_layernorm_student(batch_size, dim, eps, backend):
     weight_grad  = load_numpy_array(weight_grad_path)
 
     layer = minitorch.LayerNorm1d(dim=dim, eps=eps, backend=backend)
-    x_minitorch = minitorch.tensor(data.tolist(), backend=backend)
+    x_minitorch = minitorch.tensor(data.tolist(), backend=backend, requires_grad=True)
     result = layer(x_minitorch)
     np.testing.assert_allclose(result.to_numpy(), result_, atol=1e-5, rtol=1e-5)
     result.sum().backward()

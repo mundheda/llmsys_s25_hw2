@@ -33,12 +33,13 @@ class Linear(minitorch.Module):
         # 2. Initialize self.bias to be a random parameter of (out_size)
         # 3. Set self.out_size to be out_size
         # HINT: make sure to use the RParam function
-        
         self.weights = RParam(in_size, out_size)
         self.bias = RParam(out_size)
         self.out_size = out_size
     
         # END ASSIGN1_3
+
+
 
     def forward(self, x):
         
@@ -53,13 +54,11 @@ class Linear(minitorch.Module):
         # HINT: You can use the view function of minitorch.tensor for reshape
 
         x = x.view(batch, in_size)
-        weights = self.weights.value.view(in_size, self.out_size)
+        w = self.weights.value.view(in_size, self.out_size)
+        b = self.bias.value
 
-        out = x @ weights
-        out = out.view(batch, self.out_size) + self.bias.value       
-        
-        return out
-        
+        return x @ w + b
+    
         # END ASSIGN1_3
         
         
@@ -112,16 +111,15 @@ class Network(minitorch.Module):
         # 5. Apply sigmoid and reshape to (batch)
         # HINT: You can use minitorch.dropout for dropout, and minitorch.tensor.relu for ReLU
         
-        emb = embeddings.mean(dim=1)
-        batch_size = emb.shape[0]
-        emb = emb.view(batch_size, self.embedding_dim)
-        out = self.linear1(emb)
-        out = out.relu()
-        out = minitorch.dropout(out, rate=self.dropout_prob)   
-        out = self.linear2(out)
-        out = out.sigmoid().view(out.shape[0])  
-        
-        return out
+        x = embeddings.mean(dim=1)
+        batch_size = x.shape[0]
+        x = x.view(batch_size, self.embedding_dim)
+        x = self.linear1(x)
+        x = x.relu()
+        x = minitorch.dropout(x, self.dropout_prob)
+        x = self.linear2(x)
+        y = x.sigmoid().view(batch_size)
+        return y
     
         # END ASSIGN1_3
 
@@ -215,17 +213,23 @@ class SentenceSentimentTrain:
                 # 5. Call backward function of the loss
                 # 6. Use Optimizer to take a gradient step
                 
-                def cross_entropy_loss(out, y):
-                    loss = (y * out.log()) + (-y + 1.0) * (-out + 1.0).log()
-                    return - loss.sum()
-                
-                x = minitorch.tensor(X_train[example_num: example_num + batch_size], requires_grad=True, backend=BACKEND)
-                y = minitorch.tensor(y_train[example_num: example_num + batch_size], requires_grad=True, backend=BACKEND)
-                out = model(x)
                 sample_num = min(batch_size, n_training_samples - example_num)
-                loss = cross_entropy_loss(out, y) / sample_num
+                x = minitorch.tensor(
+                    X_train[example_num:example_num + sample_num], 
+                    backend=BACKEND,
+                    requires_grad=True
+                )
+                y = minitorch.tensor(
+                    y_train[example_num:example_num + sample_num], 
+                    backend=BACKEND,
+                    requires_grad=True
+                )
+                out = model(x)
+                loss = (y * out.log()) + (-y + 1.0) * (-out + 1.0).log()
+                loss = -loss.sum() / sample_num
                 loss.backward()
                 optim.step()
+                optim.zero_grad()
                 
                 # END ASSIGN1_4
                 
@@ -248,9 +252,8 @@ class SentenceSentimentTrain:
                 # 3. Obtain validation predictions using the get_predictions_array function, and add to the validation_predictions list
                 # 4. Obtain the validation accuracy using the get_accuracy function, and add to the validation_accuracy list
                 
-                x = minitorch.tensor(X_val, requires_grad=True, backend=BACKEND)
-                y = minitorch.tensor(y_val, requires_grad=True, backend=BACKEND)
-                
+                x = minitorch.tensor(X_val, backend=BACKEND, requires_grad=True)
+                y = minitorch.tensor(y_val, backend=BACKEND, requires_grad=True)
                 out = model(x)
                 validation_predictions += get_predictions_array(y, out)
                 validation_accuracy.append(get_accuracy(validation_predictions))
@@ -333,6 +336,9 @@ if __name__ == "__main__":
     max_epochs = 250
     embedding_dim = 50
 
+    import os
+    os.environ['EMBEDDINGS_ROOT'] = "/home/scratch/wentsec/hw_data"
+    
     (X_train, y_train), (X_val, y_val) = encode_sentiment_data(
         load_dataset("glue", "sst2"),
         embeddings.GloveEmbedding("wikipedia_gigaword", d_emb=embedding_dim, show_progress=True),

@@ -45,10 +45,10 @@ class MultiHeadAttention(Module):
         self.attn_hidden_dim = n_embd // n_head
 
         ### BEGIN YOUR SOLUTION
-        self.q_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
-        self.k_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
-        self.v_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
-        self.out_projection = Linear(n_embd, n_embd, bias=bias, backend=backend)
+        self.q_projection = Linear(self.n_embd, self.n_embd, bias=bias, backend=backend)
+        self.k_projection = Linear(self.n_embd, self.n_embd, bias=bias, backend=backend)
+        self.v_projection = Linear(self.n_embd, self.n_embd, bias=bias, backend=backend)
+        self.out_projection = Linear(self.n_embd, self.n_embd, bias=bias, backend=backend)
         self.dropout = Dropout(p_dropout)
         ### END YOUR SOLUTION
 
@@ -71,9 +71,12 @@ class MultiHeadAttention(Module):
         batch_size, seq_len, n_embd = x.shape
         ### BEGIN YOUR SOLUTION
         x = x.view(batch_size * seq_len, n_embd)
+
         q = self.q_projection(x).view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
-        kT = self.k_projection(x).view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 3, 1)
+
         v = self.v_projection(x).view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 1, 3)
+ 
+        kT = self.k_projection(x).view(batch_size, seq_len, self.n_head, self.attn_hidden_dim).permute(0, 2, 3, 1)
         ### END YOUR SOLUTION
         return q, kT, v
     
@@ -100,13 +103,17 @@ class MultiHeadAttention(Module):
         
         ### BEGIN YOUR SOLUTION
         attention_scores = (q @ kT) / np.sqrt(self.attn_hidden_dim)
+        
         if self.causal:
             attention_scores = attention_scores + self.create_causal_mask(queries_len)
+        
         norm_ascores = softmax(attention_scores, dim=3)
         norm_ascores = self.dropout(norm_ascores)
+        
         dot_prod_attention = norm_ascores @ v
         dot_prod_attention = dot_prod_attention.permute(0, 2, 1, 3).contiguous()
         dot_prod_attention = dot_prod_attention.view(batch_size * queries_len, self.n_embd)
+        
         output = self.out_projection(dot_prod_attention)
         output = output.view(batch_size, queries_len, self.n_embd)
         ### END YOUR SOLUTION

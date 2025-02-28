@@ -22,7 +22,7 @@ def get_dataset(dataset_name, model_max_length):
     Obtrain IWSLT (de-en) dataset.
     """
     dataset = {
-        split: datasets.load_dataset(dataset_name, split=split, use_auth_token=True)['translation']
+        split: datasets.load_dataset(dataset_name, split=split)['translation']
         for split in ['train', 'validation', 'test']
     }
     src_key, tgt_key = 'de', 'en'
